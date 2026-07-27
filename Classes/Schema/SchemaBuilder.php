@@ -4,48 +4,75 @@ declare(strict_types=1);
 
 namespace Lochmueller\Seal\Schema;
 
-use CmsIg\Seal\Schema\Field;
 use CmsIg\Seal\Schema\Index;
 use CmsIg\Seal\Schema\Schema;
+use Lochmueller\Seal\Configuration\ConfigurationLoader;
+use Lochmueller\Seal\Dto\DsnDto;
 use Lochmueller\Seal\Event\BuildSchemaEvent;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 
 class SchemaBuilder
 {
     public const DEFAULT_INDEX = 'default';
     public const DEFAULT_SCHEMA = 'default';
 
-    public function __construct(protected EventDispatcherInterface $eventDispatcher) {}
+    public function __construct(
+        protected EventDispatcherInterface $eventDispatcher,
+        protected ConfigurationLoader $configurationLoader,
+    ) {}
 
-    public function getSchema(): Schema
+    public function getSchema(SiteInterface $site, DsnDto $dsn): Schema
     {
-        $schema = new Schema([
-            self::DEFAULT_SCHEMA => $this->getPageIndex(),
-        ]);
+        $baseName = (isset($dsn->query['index']) && is_string($dsn->query['index'])) ? $dsn->query['index'] : self::DEFAULT_INDEX;
+        $definitionName = (isset($dsn->query['definition']) && is_string($dsn->query['definition'])) ? $dsn->query['definition'] : self::DEFAULT_SCHEMA;
 
+        $definition = $this->configurationLoader->getDefinition($definitionName);
+        if ($definition === null && $definitionName !== self::DEFAULT_SCHEMA) {
+            $definition = $this->configurationLoader->getDefinition(self::DEFAULT_SCHEMA);
+        }
+
+        if ($definition === null) {
+            return new Schema([]);
+        }
+
+        $fields = $definition->getFields();
+        $indexes = [];
+
+        if ($definition->isLanguageAware()) {
+            $indexSupportsLocale = self::indexSupportsLocale();
+            foreach ($site->getLanguages() as $language) {
+                $languageCode = $language->getLocale()->getLanguageCode();
+                $name = $baseName . '_' . $languageCode;
+                $indexes[$name] = $indexSupportsLocale
+                    ? new Index($name, $fields, locale: $languageCode) // @phpstan-ignore argument.unknown
+                    : new Index($name, $fields, options: ['locale' => $languageCode]);
+            }
+        } else {
+            $indexes[$baseName] = new Index($baseName, $fields);
+        }
+
+        $schema = new Schema($indexes);
         $event = new BuildSchemaEvent($schema);
         $this->eventDispatcher->dispatch($event);
         return $event->schema;
     }
 
-    public function getPageIndex(): Index
+    private static function indexSupportsLocale(): bool
     {
-        return new Index(SchemaBuilder::DEFAULT_INDEX, [
-            'id' => new Field\IdentifierField('id'), // Page ID or PageID incl. suffix and record ID. Example: 128 or 291-tx_news-12839
-            // Meta
-            'site' => new Field\TextField('site', searchable: false, filterable: true), // Site identifier. Example: portal
-            'language' => new Field\TextField('language', searchable: false, filterable: true), // Language UID as string. Example: "0"
-            'uri' => new Field\TextField('uri', searchable: false), // URI.
-            'location' => new Field\GeoPointField('location', filterable: true), // Geo coordinates for distance search
-            'indexdate' => new Field\DateTimeField('indexdate'), // The date time of the index insert/update
-            // Content
-            'title' => new Field\TextField('title', sortable: true), // Title. Example: Homepage - My Company
-            'content' => new Field\TextField('content'), // Content. Example: I am a long string example
-            'tags' => new Field\TextField('tags', multiple: true, filterable: true, facet: true), // Tags. Defaults are "Page" "File"
-            // File
-            'size' => new Field\IntegerField('size', searchable: false), // File size in byte in case of file. Otherwise 0. Example: 123789
-            'extension' => new Field\TextField('extension'), // File extension in case of file. Otherwise empty. Example: html, pdf, png
-            'preview' => new Field\TextField('preview', searchable: false), // Media preview.
-        ]);
+        static $supported = null;
+        if ($supported !== null) {
+            return $supported;
+        }
+        $constructor = (new \ReflectionClass(Index::class))->getConstructor();
+        if ($constructor === null) {
+            return $supported = false;
+        }
+        foreach ($constructor->getParameters() as $param) {
+            if ($param->getName() === 'locale') {
+                return $supported = true;
+            }
+        }
+        return $supported = false;
     }
 }

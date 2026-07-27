@@ -11,9 +11,6 @@ use CmsIg\Seal\EngineInterface;
 use CmsIg\Seal\Schema\Field;
 use CmsIg\Seal\Schema\Index;
 use CmsIg\Seal\Schema\Schema;
-use Lochmueller\Seal\Configuration\Configuration;
-use Lochmueller\Seal\Configuration\ConfigurationLoader;
-use Lochmueller\Seal\DsnParser;
 use Lochmueller\Seal\Dto\DsnDto;
 use Lochmueller\Seal\Engine\EngineFactory;
 use Lochmueller\Seal\Event\ResolveAdapterEvent;
@@ -25,33 +22,23 @@ use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 
 class EngineFactoryTest extends AbstractTest
 {
-    private ConfigurationLoader $configurationLoaderStub;
-
     private SchemaBuilder $schemaBuilderStub;
-
-    private DsnParser $dsnParserStub;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->configurationLoaderStub = $this->createStub(ConfigurationLoader::class);
         $this->schemaBuilderStub = $this->createStub(SchemaBuilder::class);
         $this->schemaBuilderStub->method('getSchema')->willReturn(new Schema([
             SchemaBuilder::DEFAULT_INDEX => new Index(SchemaBuilder::DEFAULT_INDEX, [
                 'id' => new Field\IdentifierField('id'),
             ]),
         ]));
-        $this->dsnParserStub = $this->createStub(DsnParser::class);
     }
 
     public function testBuildEngineBySiteReturnsEngineWhenAdapterFactoryMatches(): void
     {
-        $dsn = new DsnDto(scheme: 'elasticsearch', host: 'localhost', port: 9200);
-        $config = new Configuration('elasticsearch://localhost:9200', 3, 10);
-
-        $this->configurationLoaderStub->method('loadBySite')->willReturn($config);
-        $this->dsnParserStub->method('parse')->willReturn($dsn);
+        $dsn = new DsnDto('elasticsearch://localhost:9200', 'elasticsearch', host: 'localhost', port: 9200);
 
         $adapter = $this->createStub(AdapterInterface::class);
         $adapterFactory = new class ($adapter) implements AdapterFactoryInterface {
@@ -81,9 +68,7 @@ class EngineFactoryTest extends AbstractTest
 
         $subject = new EngineFactory(
             $eventDispatcher,
-            $this->configurationLoaderStub,
             $this->schemaBuilderStub,
-            $this->dsnParserStub,
             new AdapterFactory([
                 'elasticsearch' => $adapterFactory,
             ]),
@@ -92,7 +77,7 @@ class EngineFactoryTest extends AbstractTest
         $site = $this->createStub(SiteInterface::class);
         $site->method('getIdentifier')->willReturn('main');
 
-        $result = $subject->buildEngineBySite($site);
+        $result = $subject->buildEngineBySite($site, $dsn);
 
         self::assertInstanceOf(EngineInterface::class, $result);
 
@@ -105,11 +90,7 @@ class EngineFactoryTest extends AbstractTest
 
     public function testBuildEngineBySiteThrowsExceptionWhenNoAdapterFound(): void
     {
-        $dsn = new DsnDto(scheme: 'unknown');
-        $config = new Configuration('unknown://', 3, 10);
-
-        $this->configurationLoaderStub->method('loadBySite')->willReturn($config);
-        $this->dsnParserStub->method('parse')->willReturn($dsn);
+        $dsn = new DsnDto('unknown://', 'unknown');
 
         $eventDispatcher = $this->createStub(EventDispatcherInterface::class);
         $eventDispatcher->method('dispatch')
@@ -117,9 +98,7 @@ class EngineFactoryTest extends AbstractTest
 
         $subject = new EngineFactory(
             $eventDispatcher,
-            $this->configurationLoaderStub,
             $this->schemaBuilderStub,
-            $this->dsnParserStub,
             new AdapterFactory([]),
         );
 
@@ -129,16 +108,12 @@ class EngineFactoryTest extends AbstractTest
         $this->expectException(AdapterNotFoundException::class);
         $this->expectExceptionCode(23482934);
 
-        $subject->buildEngineBySite($site);
+        $subject->buildEngineBySite($site, $dsn);
     }
 
     public function testBuildEngineBySiteUsesEventDispatcherToResolveAdapter(): void
     {
-        $dsn = new DsnDto(scheme: 'custom');
-        $config = new Configuration('custom://', 3, 10);
-
-        $this->configurationLoaderStub->method('loadBySite')->willReturn($config);
-        $this->dsnParserStub->method('parse')->willReturn($dsn);
+        $dsn = new DsnDto('custom://', 'custom');
 
         $adapter = $this->createStub(AdapterInterface::class);
 
@@ -153,36 +128,28 @@ class EngineFactoryTest extends AbstractTest
 
         $subject = new EngineFactory(
             $eventDispatcher,
-            $this->configurationLoaderStub,
             $this->schemaBuilderStub,
-            $this->dsnParserStub,
             new AdapterFactory([]),
         );
 
         $site = $this->createStub(SiteInterface::class);
         $site->method('getIdentifier')->willReturn('main');
 
-        $result = $subject->buildEngineBySite($site);
+        $result = $subject->buildEngineBySite($site, $dsn);
 
         self::assertInstanceOf(EngineInterface::class, $result);
     }
 
     public function testBuildEngineBySiteExceptionContainsSiteIdentifier(): void
     {
-        $dsn = new DsnDto(scheme: 'missing');
-        $config = new Configuration('missing://', 3, 10);
-
-        $this->configurationLoaderStub->method('loadBySite')->willReturn($config);
-        $this->dsnParserStub->method('parse')->willReturn($dsn);
+        $dsn = new DsnDto('missing://', 'missing');
 
         $eventDispatcher = $this->createStub(EventDispatcherInterface::class);
         $eventDispatcher->method('dispatch')->willReturnArgument(0);
 
         $subject = new EngineFactory(
             $eventDispatcher,
-            $this->configurationLoaderStub,
             $this->schemaBuilderStub,
-            $this->dsnParserStub,
             new AdapterFactory([]),
         );
 
@@ -190,7 +157,7 @@ class EngineFactoryTest extends AbstractTest
         $site->method('getIdentifier')->willReturn('my-portal');
 
         try {
-            $subject->buildEngineBySite($site);
+            $subject->buildEngineBySite($site, $dsn);
             self::fail('Expected AdapterNotFoundException was not thrown');
         } catch (AdapterNotFoundException $e) {
             self::assertStringContainsString('my-portal', $e->getMessage());

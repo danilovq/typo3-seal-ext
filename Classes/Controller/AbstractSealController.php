@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Lochmueller\Seal\Controller;
 
+use CmsIg\Seal\Search\SearchBuilder;
 use Lochmueller\Seal\Filter\RadiusConfigurationParser;
 use Lochmueller\Seal\Filter\TagConfigurationParser;
 use Lochmueller\Seal\Seal;
 use TYPO3\CMS\Core\Database\ConnectionPool;
 use TYPO3\CMS\Core\Database\Query\QueryBuilder;
+use TYPO3\CMS\Core\Site\Entity\Site;
+use TYPO3\CMS\Core\Site\Entity\SiteLanguage;
 use TYPO3\CMS\Core\Utility\GeneralUtility;
 use TYPO3\CMS\Extbase\Mvc\Controller\ActionController;
 
@@ -17,7 +20,7 @@ abstract class AbstractSealController extends ActionController
     public function __construct(
         private readonly TagConfigurationParser $tagConfigurationParser,
         private readonly RadiusConfigurationParser $radiusConfigurationParser,
-        private readonly Seal $seal,
+        protected readonly Seal $seal,
     ) {}
 
     /**
@@ -90,13 +93,14 @@ abstract class AbstractSealController extends ActionController
         return $filterRows;
     }
 
-    protected function getSearchBuilder()
+    protected function getSearchBuilder(): SearchBuilder
     {
-
         /** @var Site $site */
         $site = $this->request->getAttribute('site');
+        /** @var SiteLanguage|null $language */
+        $language = $this->request->getAttribute('language');
         $engine = $this->seal->buildEngineBySite($site);
-        return $engine->createSearchBuilder($this->seal->getIndexNameBySite($site));
+        return $engine->createSearchBuilder($this->seal->getIndexNameBySite($site, $language));
     }
 
 }

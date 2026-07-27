@@ -68,7 +68,9 @@ class SearchController extends AbstractSealController implements LoggerAwareInte
         }
 
         $filter[] = Condition::equal('site', $site->getIdentifier());
-        $filter[] = Condition::equal('language', (string) $language->getLanguageId());
+        if ($this->seal->hasLanguageField($site)) {
+            $filter[] = Condition::equal('language', (string) $language->getLanguageId());
+        }
 
         $searchBuilder = $this->getSearchBuilder();
         foreach ($filter as $condition) {

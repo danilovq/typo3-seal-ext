@@ -131,6 +131,7 @@ class DsnParserTest extends AbstractTest
         $array = $result->toArray();
 
         self::assertSame([
+            'dsn' => 'mysql://user:pass@localhost:3306/db?opt=val',
             'scheme' => 'mysql',
             'user' => 'user',
             'pass' => 'pass',

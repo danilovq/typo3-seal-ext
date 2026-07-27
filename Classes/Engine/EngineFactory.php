@@ -7,9 +7,9 @@ namespace Lochmueller\Seal\Engine;
 use CmsIg\Seal\Adapter\AdapterFactory;
 use CmsIg\Seal\Engine;
 use CmsIg\Seal\EngineInterface;
+use CmsIg\Seal\Schema\Schema;
 use InvalidArgumentException;
-use Lochmueller\Seal\Configuration\ConfigurationLoader;
-use Lochmueller\Seal\DsnParser;
+use Lochmueller\Seal\Dto\DsnDto;
 use Lochmueller\Seal\Event\ResolveAdapterEvent;
 use Lochmueller\Seal\Exception\AdapterNotFoundException;
 use Lochmueller\Seal\Schema\SchemaBuilder;
@@ -18,23 +18,17 @@ use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 
 class EngineFactory
 {
-    /**
-     *
-     */
     public function __construct(
         protected EventDispatcherInterface $eventDispatcher,
-        protected ConfigurationLoader $configurationLoader,
-        protected SchemaBuilder            $schemaBuilder,
-        protected DsnParser            $dsnParser,
-        protected AdapterFactory           $adapterFactory,
+        protected SchemaBuilder $schemaBuilder,
+        protected AdapterFactory $adapterFactory,
     ) {}
 
-    public function buildEngineBySite(SiteInterface $site): EngineInterface
+    public function buildEngineBySite(SiteInterface $site, DsnDto $dsn): EngineInterface
     {
-        $configuration = $this->configurationLoader->loadBySite($site);
-        $dsn = $this->dsnParser->parse($configuration->searchDsn);
+        $schema = $this->getSchema($site, $dsn);
         try {
-            $adapter = $this->adapterFactory->createAdapter($configuration->searchDsn);
+            $adapter = $this->adapterFactory->createAdapter($dsn->dsn);
         } catch (InvalidArgumentException) {
             $adapter = null;
         }
@@ -47,7 +41,12 @@ class EngineFactory
 
         return new Engine(
             $resolveAdapterEvent->adapter,
-            $this->schemaBuilder->getSchema(),
+            $schema,
         );
+    }
+
+    public function getSchema(SiteInterface $site, DsnDto $dsn): Schema
+    {
+        return $this->schemaBuilder->getSchema($site, $dsn);
     }
 }

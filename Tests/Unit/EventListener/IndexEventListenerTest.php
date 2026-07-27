@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Lochmueller\Seal\Tests\Unit\EventListener;
 
 use CmsIg\Seal\EngineInterface;
+use DateTimeImmutable;
 use Lochmueller\Index\Enums\IndexTechnology;
 use Lochmueller\Index\Enums\IndexType;
 use Lochmueller\Index\Event\IndexFileEvent;
 use Lochmueller\Index\Event\IndexPageEvent;
-use Lochmueller\Index\Traversing\RecordSelection;
 use Lochmueller\Seal\EventListener\IndexEventListener;
+use Lochmueller\Seal\Schema\IndexDefinitionInterface;
 use Lochmueller\Seal\Schema\SchemaBuilder;
 use Lochmueller\Seal\Seal;
 use Lochmueller\Seal\Tests\Unit\AbstractTest;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
-use TYPO3\CMS\Core\Resource\ResourceFactory;
 use TYPO3\CMS\Core\Site\Entity\Site;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 
@@ -26,7 +26,7 @@ class IndexEventListenerTest extends AbstractTest
 
     private IndexEventListener $subject;
 
-    private RecordSelection $recordSelectionStub;
+    private IndexDefinitionInterface $definitionStub;
 
     protected function setUp(): void
     {
@@ -34,16 +34,16 @@ class IndexEventListenerTest extends AbstractTest
 
         $this->sealStub = $this->createStub(Seal::class);
         $this->sealStub->method('getIndexNameBySite')->willReturn(SchemaBuilder::DEFAULT_INDEX);
-        $resourceFactoryStub = $this->createStub(ResourceFactory::class);
-        $this->recordSelectionStub = $this->createStub(RecordSelection::class);
+
+        $this->definitionStub = $this->createStub(IndexDefinitionInterface::class);
+
+        $this->sealStub->method('getDefinitionForSite')->willReturn($this->definitionStub);
 
         $eventDispatcherStub = $this->createStub(EventDispatcherInterface::class);
         $eventDispatcherStub->method('dispatch')->willReturnArgument(0);
 
         $this->subject = new IndexEventListener(
             $this->sealStub,
-            $resourceFactoryStub,
-            $this->recordSelectionStub,
             $eventDispatcherStub,
         );
     }
@@ -66,6 +66,20 @@ class IndexEventListenerTest extends AbstractTest
             accessGroups: [],
             uri: 'https://example.com/test',
         );
+
+        $this->definitionStub->method('buildDocument')->willReturn([
+            'id' => 'p-' . md5('https://example.com/test'),
+            'site' => 'main',
+            'language' => '0',
+            'uri' => 'https://example.com/test',
+            'indexdate' => (new DateTimeImmutable())->format(DateTimeImmutable::ATOM),
+            'title' => 'Test Page',
+            'content' => 'Hello World',
+            'tags' => ['Page'],
+            'size' => 0,
+            'extension' => '',
+            'preview' => '',
+        ]);
 
         $engine = $this->createMock(EngineInterface::class);
         $this->sealStub->method('buildEngineBySite')->willReturn($engine);
@@ -100,6 +114,20 @@ class IndexEventListenerTest extends AbstractTest
             fileIdentifier: '1:/documents/test.pdf',
             uri: 'https://example.com/file.pdf',
         );
+
+        $this->definitionStub->method('buildDocument')->willReturn([
+            'id' => 'd-' . md5('https://example.com/file.pdf'),
+            'site' => 'main',
+            'language' => '0',
+            'uri' => 'https://example.com/file.pdf',
+            'indexdate' => (new DateTimeImmutable())->format(DateTimeImmutable::ATOM),
+            'title' => 'Test File',
+            'content' => 'File content here',
+            'tags' => ['File'],
+            'size' => 0,
+            'extension' => '',
+            'preview' => '',
+        ]);
 
         $engine = $this->createMock(EngineInterface::class);
         $this->sealStub->method('buildEngineBySite')->willReturn($engine);
@@ -169,6 +197,33 @@ class IndexEventListenerTest extends AbstractTest
             uri: '',
         );
 
+        $this->definitionStub->method('buildDocument')->willReturnCallback(function (IndexPageEvent $event) {
+            $uri = $event->uri;
+            if ($uri === '' && $event->site instanceof Site) {
+                $arguments = [];
+                try {
+                    $language = $event->site->getLanguageById($event->language);
+                    $arguments['_language'] = $language;
+                } catch (\InvalidArgumentException) {
+                }
+                $uri = (string) $event->site->getRouter()->generateUri($event->pageUid, $arguments);
+            }
+
+            return [
+                'id' => 'p-' . md5($uri),
+                'site' => $event->site->getIdentifier(),
+                'language' => (string) $event->language,
+                'uri' => $uri,
+                'indexdate' => (new DateTimeImmutable())->format(DateTimeImmutable::ATOM),
+                'title' => $event->title,
+                'content' => (string) preg_replace('/\\s+/', ' ', strip_tags($event->content)),
+                'tags' => ['Page'],
+                'size' => 0,
+                'extension' => '',
+                'preview' => '',
+            ];
+        });
+
         $engine = $this->createMock(EngineInterface::class);
         $this->sealStub->method('buildEngineBySite')->willReturn($engine);
 
@@ -201,9 +256,19 @@ class IndexEventListenerTest extends AbstractTest
             uri: 'https://example.com/tagged',
         );
 
-        $this->recordSelectionStub
-            ->method('findRenderablePage')
-            ->willReturn(['keywords' => 'typo3, search, seal']);
+        $this->definitionStub->method('buildDocument')->willReturn([
+            'id' => 'p-' . md5('https://example.com/tagged'),
+            'site' => 'main',
+            'language' => '0',
+            'uri' => 'https://example.com/tagged',
+            'indexdate' => (new DateTimeImmutable())->format(DateTimeImmutable::ATOM),
+            'title' => 'Tagged Page',
+            'content' => 'content',
+            'tags' => ['Page', 'typo3', 'search', 'seal'],
+            'size' => 0,
+            'extension' => '',
+            'preview' => '',
+        ]);
 
         $engine = $this->createMock(EngineInterface::class);
         $this->sealStub->method('buildEngineBySite')->willReturn($engine);
@@ -239,6 +304,20 @@ class IndexEventListenerTest extends AbstractTest
             accessGroups: [],
             uri: 'https://example.com',
         );
+
+        $this->definitionStub->method('buildDocument')->willReturn([
+            'id' => 'p-' . md5('https://example.com'),
+            'site' => 'main',
+            'language' => '0',
+            'uri' => 'https://example.com',
+            'indexdate' => (new DateTimeImmutable())->format(DateTimeImmutable::ATOM),
+            'title' => 'HTML Page',
+            'content' => 'Title Paragraph text',
+            'tags' => ['Page'],
+            'size' => 0,
+            'extension' => '',
+            'preview' => '',
+        ]);
 
         $engine = $this->createMock(EngineInterface::class);
         $this->sealStub->method('buildEngineBySite')->willReturn($engine);

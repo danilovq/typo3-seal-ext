@@ -290,6 +290,8 @@ class SearchControllerTest extends AbstractTest
         // Mock Seal
         $seal = $this->createStub(Seal::class);
         $seal->method('buildEngineBySite')->willReturn($engine);
+        $seal->method('hasLanguageField')->willReturn(true);
+        $seal->method('getIndexNameBySite')->willReturn(SchemaBuilder::DEFAULT_INDEX);
 
         // Mock ConfigurationLoader
         $config = new Configuration('typo3://', 3, 10, SimplePagination::class, 6);

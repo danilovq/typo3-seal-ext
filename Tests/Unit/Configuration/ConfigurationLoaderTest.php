@@ -17,7 +17,7 @@ class ConfigurationLoaderTest extends AbstractTest
     protected function setUp(): void
     {
         parent::setUp();
-        $this->subject = new ConfigurationLoader();
+        $this->subject = new ConfigurationLoader([]);
     }
 
     public function testLoadBySiteReturnConfiguration(): void

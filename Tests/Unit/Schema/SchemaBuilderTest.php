@@ -7,16 +7,26 @@ namespace Lochmueller\Seal\Tests\Unit\Schema;
 use CmsIg\Seal\Schema\Field;
 use CmsIg\Seal\Schema\Index;
 use CmsIg\Seal\Schema\Schema;
+use Lochmueller\Seal\Configuration\ConfigurationLoader;
+use Lochmueller\Seal\Dto\DsnDto;
 use Lochmueller\Seal\Event\BuildSchemaEvent;
+use Lochmueller\Seal\Schema\IndexDefinitionInterface;
 use Lochmueller\Seal\Schema\SchemaBuilder;
 use Lochmueller\Seal\Tests\Unit\AbstractTest;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use TYPO3\CMS\Core\Site\Entity\SiteInterface;
 
 class SchemaBuilderTest extends AbstractTest
 {
     private SchemaBuilder $subject;
 
     private EventDispatcherInterface $eventDispatcherStub;
+
+    private ConfigurationLoader $configurationLoaderStub;
+
+    private SiteInterface $siteStub;
+
+    private DsnDto $dsnStub;
 
     protected function setUp(): void
     {
@@ -25,7 +35,23 @@ class SchemaBuilderTest extends AbstractTest
         $this->eventDispatcherStub = $this->createStub(EventDispatcherInterface::class);
         $this->eventDispatcherStub->method('dispatch')->willReturnArgument(0);
 
-        $this->subject = new SchemaBuilder($this->eventDispatcherStub);
+        $definition = $this->createStub(IndexDefinitionInterface::class);
+        $definition->method('getName')->willReturn('default');
+        $definition->method('isLanguageAware')->willReturn(false);
+        $definition->method('getFields')->willReturn([
+            'id' => new Field\IdentifierField('id'),
+            'title' => new Field\TextField('title'),
+        ]);
+
+        $this->configurationLoaderStub = $this->createStub(ConfigurationLoader::class);
+        $this->configurationLoaderStub->method('getDefinition')->willReturn($definition);
+
+        $this->siteStub = $this->createStub(SiteInterface::class);
+        $this->siteStub->method('getIdentifier')->willReturn('main');
+
+        $this->dsnStub = new DsnDto('typo3://', 'typo3');
+
+        $this->subject = new SchemaBuilder($this->eventDispatcherStub, $this->configurationLoaderStub);
     }
 
     public function testDefaultIndexConstant(): void
@@ -35,7 +61,7 @@ class SchemaBuilderTest extends AbstractTest
 
     public function testGetSchemaReturnsSchemaWithDefaultIndex(): void
     {
-        $schema = $this->subject->getSchema();
+        $schema = $this->subject->getSchema($this->siteStub, $this->dsnStub);
 
         self::assertInstanceOf(Schema::class, $schema);
         self::assertArrayHasKey(SchemaBuilder::DEFAULT_INDEX, $schema->indexes);
@@ -49,8 +75,8 @@ class SchemaBuilderTest extends AbstractTest
             ->with(self::isInstanceOf(BuildSchemaEvent::class))
             ->willReturnArgument(0);
 
-        $subject = new SchemaBuilder($eventDispatcher);
-        $subject->getSchema();
+        $subject = new SchemaBuilder($eventDispatcher, $this->configurationLoaderStub);
+        $subject->getSchema($this->siteStub, $this->dsnStub);
     }
 
     public function testGetSchemaReturnsEventModifiedSchema(): void
@@ -68,66 +94,12 @@ class SchemaBuilderTest extends AbstractTest
                 return $event;
             });
 
-        $subject = new SchemaBuilder($eventDispatcher);
-        $schema = $subject->getSchema();
+        $subject = new SchemaBuilder($eventDispatcher, $this->configurationLoaderStub);
+        $schema = $subject->getSchema($this->siteStub, $this->dsnStub);
 
         self::assertSame($modifiedSchema, $schema);
         self::assertArrayHasKey('custom', $schema->indexes);
         self::assertArrayNotHasKey(SchemaBuilder::DEFAULT_INDEX, $schema->indexes);
-    }
-
-    public function testGetPageIndexReturnsIndex(): void
-    {
-        $index = $this->subject->getPageIndex();
-
-        self::assertInstanceOf(Index::class, $index);
-        self::assertSame(SchemaBuilder::DEFAULT_INDEX, $index->name);
-    }
-
-    public function testGetPageIndexContainsExpectedFields(): void
-    {
-        $index = $this->subject->getPageIndex();
-
-        $expectedFields = [
-            'id', 'site', 'language', 'uri', 'location', 'indexdate',
-            'title', 'content', 'tags', 'size', 'extension', 'preview',
-        ];
-
-        foreach ($expectedFields as $fieldName) {
-            self::assertArrayHasKey($fieldName, $index->fields, "Field '{$fieldName}' missing from page index");
-        }
-    }
-
-    public function testGetPageIndexFieldTypes(): void
-    {
-        $index = $this->subject->getPageIndex();
-
-        self::assertInstanceOf(Field\IdentifierField::class, $index->fields['id']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['site']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['language']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['uri']);
-        self::assertInstanceOf(Field\DateTimeField::class, $index->fields['indexdate']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['title']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['content']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['tags']);
-        self::assertInstanceOf(Field\IntegerField::class, $index->fields['size']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['extension']);
-        self::assertInstanceOf(Field\TextField::class, $index->fields['preview']);
-    }
-
-    public function testGetPageIndexContainsLocationFieldOfTypeGeoPointField(): void
-    {
-        $index = $this->subject->getPageIndex();
-
-        self::assertArrayHasKey('location', $index->fields, "Field 'location' missing from page index");
-        self::assertInstanceOf(Field\GeoPointField::class, $index->fields['location']);
-    }
-
-    public function testGetPageIndexLocationFieldIsFilterable(): void
-    {
-        $index = $this->subject->getPageIndex();
-
-        self::assertTrue($index->fields['location']->filterable, "Field 'location' should be filterable");
     }
 
 }

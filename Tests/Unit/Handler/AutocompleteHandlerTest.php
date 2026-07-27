@@ -6,6 +6,8 @@ namespace Lochmueller\Seal\Tests\Unit\Handler;
 
 use CmsIg\Seal\Adapter\SearcherInterface;
 use CmsIg\Seal\EngineInterface;
+use CmsIg\Seal\Schema\Field;
+use CmsIg\Seal\Schema\Index;
 use CmsIg\Seal\Schema\Schema;
 use CmsIg\Seal\Search\Result;
 use CmsIg\Seal\Search\SearchBuilder;
@@ -16,7 +18,6 @@ use Lochmueller\Seal\Schema\SchemaBuilder as SealSchemaBuilder;
 use Lochmueller\Seal\Seal;
 use Lochmueller\Seal\Tests\Unit\AbstractTest;
 use PHPUnit\Framework\MockObject\Stub;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReflectionMethod;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
@@ -93,10 +94,13 @@ class AutocompleteHandlerTest extends AbstractTest
         })();
         $result = new Result($generator, count($documents));
 
-        $eventDispatcher = $this->createStub(EventDispatcherInterface::class);
-        $schemaBuilder = new SealSchemaBuilder($eventDispatcher);
+        $index = new Index(SealSchemaBuilder::DEFAULT_INDEX, [
+            'id' => new Field\IdentifierField('id'),
+            'title' => new Field\TextField('title'),
+            'content' => new Field\TextField('content'),
+        ]);
         $schema = new Schema([
-            SealSchemaBuilder::DEFAULT_INDEX => $schemaBuilder->getPageIndex(),
+            SealSchemaBuilder::DEFAULT_INDEX => $index,
         ]);
 
         $searcher = $this->createStub(SearcherInterface::class);

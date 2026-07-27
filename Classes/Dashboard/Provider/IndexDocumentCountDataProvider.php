@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Lochmueller\Seal\Dashboard\Provider;
 
-use Lochmueller\Seal\Schema\SchemaBuilder;
 use Lochmueller\Seal\Seal;
 use ReflectionProperty;
 use TYPO3\CMS\Core\Site\SiteFinder;
@@ -15,7 +14,6 @@ class IndexDocumentCountDataProvider implements ListDataProviderInterface
     public function __construct(
         private readonly Seal $seal,
         private readonly SiteFinder $siteFinder,
-        private readonly SchemaBuilder $schemaBuilder,
     ) {}
 
     /**
@@ -29,18 +27,18 @@ class IndexDocumentCountDataProvider implements ListDataProviderInterface
             return [];
         }
 
-        $indexNames = array_keys($this->schemaBuilder->getSchema()->indexes);
         $items = [];
 
         foreach ($sites as $site) {
             try {
                 $engine = $this->seal->buildEngineBySite($site);
+                $schema = $this->seal->getSchemaForSite($site);
 
                 $reflectionProperty = new ReflectionProperty($engine, 'adapter');
                 $adapter = $reflectionProperty->getValue($engine);
                 $adapterClassName = $adapter::class;
 
-                foreach ($indexNames as $indexName) {
+                foreach (array_keys($schema->indexes) as $indexName) {
                     $count = $engine->countDocuments($indexName);
                     $items[] = implode(' / ', [
                         $site->getIdentifier(),

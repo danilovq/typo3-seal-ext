@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Lochmueller\Seal\Tests\Unit;
 
 use CmsIg\Seal\EngineInterface;
+use Lochmueller\Seal\Configuration\Configuration;
+use Lochmueller\Seal\Configuration\ConfigurationLoader;
+use Lochmueller\Seal\DsnParser;
+use Lochmueller\Seal\Dto\DsnDto;
 use Lochmueller\Seal\Engine\EngineFactory;
 use Lochmueller\Seal\Seal;
 use TYPO3\CMS\Core\Site\Entity\SiteInterface;
@@ -13,11 +17,21 @@ class SealTest extends AbstractTest
 {
     private EngineFactory $engineFactoryStub;
 
+    private ConfigurationLoader $configurationLoaderStub;
+
+    private DsnParser $dsnParserStub;
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->engineFactoryStub = $this->createStub(EngineFactory::class);
+
+        $this->configurationLoaderStub = $this->createStub(ConfigurationLoader::class);
+        $this->configurationLoaderStub->method('loadBySite')->willReturn(new Configuration('typo3://', 3, 10));
+
+        $this->dsnParserStub = $this->createStub(DsnParser::class);
+        $this->dsnParserStub->method('parse')->willReturn(new DsnDto('typo3://', 'typo3'));
     }
 
     public function testBuildEngineBySiteReturnsEngineFromFactory(): void
@@ -28,7 +42,7 @@ class SealTest extends AbstractTest
         $site = $this->createStub(SiteInterface::class);
         $site->method('getIdentifier')->willReturn('main');
 
-        $subject = new Seal($this->engineFactoryStub);
+        $subject = new Seal($this->engineFactoryStub, $this->configurationLoaderStub, $this->dsnParserStub);
 
         $result = $subject->buildEngineBySite($site);
 
@@ -47,7 +61,7 @@ class SealTest extends AbstractTest
         $site = $this->createStub(SiteInterface::class);
         $site->method('getIdentifier')->willReturn('main');
 
-        $subject = new Seal($engineFactory);
+        $subject = new Seal($engineFactory, $this->configurationLoaderStub, $this->dsnParserStub);
 
         $first = $subject->buildEngineBySite($site);
         $second = $subject->buildEngineBySite($site);
@@ -68,12 +82,12 @@ class SealTest extends AbstractTest
 
         $engineFactory = $this->createStub(EngineFactory::class);
         $engineFactory->method('buildEngineBySite')
-            ->willReturnMap([
-                [$siteA, $engineA],
-                [$siteB, $engineB],
-            ]);
+            ->willReturnCallback(fn(SiteInterface $site, DsnDto $dsn) => match ($site) {
+                $siteA => $engineA,
+                $siteB => $engineB,
+            });
 
-        $subject = new Seal($engineFactory);
+        $subject = new Seal($engineFactory, $this->configurationLoaderStub, $this->dsnParserStub);
 
         $resultA = $subject->buildEngineBySite($siteA);
         $resultB = $subject->buildEngineBySite($siteB);
@@ -98,7 +112,7 @@ class SealTest extends AbstractTest
         $siteB = $this->createStub(SiteInterface::class);
         $siteB->method('getIdentifier')->willReturn('beta');
 
-        $subject = new Seal($engineFactory);
+        $subject = new Seal($engineFactory, $this->configurationLoaderStub, $this->dsnParserStub);
 
         // Each site triggers one factory call
         $subject->buildEngineBySite($siteA);

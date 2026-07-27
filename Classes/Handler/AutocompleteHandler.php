@@ -39,9 +39,11 @@ class AutocompleteHandler implements RequestHandlerInterface
 
         /** @var SiteLanguage|null $language */
         $language = $request->getAttribute('language');
-        $filter[] = Condition::equal('language', (string) ($language?->getLanguageId() ?? 0));
+        if ($this->seal->hasLanguageField($site)) {
+            $filter[] = Condition::equal('language', (string) ($language?->getLanguageId() ?? 0));
+        }
 
-        $searchBuilder = $this->seal->buildEngineBySite($site)->createSearchBuilder($this->seal->getIndexNameBySite($site));
+        $searchBuilder = $this->seal->buildEngineBySite($site)->createSearchBuilder($this->seal->getIndexNameBySite($site, $language));
         foreach ($filter as $condition) {
             $searchBuilder->addFilter($condition);
         }

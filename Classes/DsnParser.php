@@ -34,6 +34,7 @@ class DsnParser
         $parsedQuery = $query;
 
         $dsnDto = new DsnDto(
+            $dsn,
             scheme: $parts['scheme'],
             user: $parts['user'] ?? null,
             pass: $parts['pass'] ?? null,

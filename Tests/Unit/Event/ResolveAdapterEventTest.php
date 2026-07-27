@@ -14,7 +14,7 @@ class ResolveAdapterEventTest extends AbstractTest
 {
     public function testConstructorSetsProperties(): void
     {
-        $dsn = new DsnDto(scheme: 'elasticsearch', host: 'localhost', port: 9200);
+        $dsn = new DsnDto('elasticsearch://localhost:9200', 'elasticsearch', host: 'localhost', port: 9200);
         $site = $this->createStub(SiteInterface::class);
 
         $event = new ResolveAdapterEvent($dsn, $site);
@@ -26,7 +26,7 @@ class ResolveAdapterEventTest extends AbstractTest
 
     public function testConstructorWithAdapter(): void
     {
-        $dsn = new DsnDto(scheme: 'loupe');
+        $dsn = new DsnDto('loupe://', 'loupe');
         $site = $this->createStub(SiteInterface::class);
         $adapter = $this->createStub(AdapterInterface::class);
 
@@ -37,7 +37,7 @@ class ResolveAdapterEventTest extends AbstractTest
 
     public function testAdapterIsModifiable(): void
     {
-        $dsn = new DsnDto(scheme: 'loupe');
+        $dsn = new DsnDto('loupe://', 'loupe');
         $site = $this->createStub(SiteInterface::class);
 
         $event = new ResolveAdapterEvent($dsn, $site);

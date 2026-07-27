@@ -48,11 +48,9 @@ class IndexDocumentCountDataProviderTest extends AbstractTest
 
         $seal = $this->createStub(Seal::class);
         $seal->method('buildEngineBySite')->willReturn($engine);
+        $seal->method('getSchemaForSite')->willReturn($schema);
 
-        $schemaBuilder = $this->createStub(SchemaBuilder::class);
-        $schemaBuilder->method('getSchema')->willReturn($schema);
-
-        $subject = new IndexDocumentCountDataProvider($seal, $siteFinder, $schemaBuilder);
+        $subject = new IndexDocumentCountDataProvider($seal, $siteFinder);
         $items = $subject->getItems();
 
         self::assertCount(1, $items);
@@ -65,9 +63,8 @@ class IndexDocumentCountDataProviderTest extends AbstractTest
         $siteFinder->method('getAllSites')->willReturn([]);
 
         $seal = $this->createStub(Seal::class);
-        $schemaBuilder = $this->createStub(SchemaBuilder::class);
 
-        $subject = new IndexDocumentCountDataProvider($seal, $siteFinder, $schemaBuilder);
+        $subject = new IndexDocumentCountDataProvider($seal, $siteFinder);
 
         self::assertSame([], $subject->getItems());
     }
@@ -109,11 +106,9 @@ class IndexDocumentCountDataProviderTest extends AbstractTest
                 return $workingEngine;
             },
         );
+        $seal->method('getSchemaForSite')->willReturn($schema);
 
-        $schemaBuilder = $this->createStub(SchemaBuilder::class);
-        $schemaBuilder->method('getSchema')->willReturn($schema);
-
-        $subject = new IndexDocumentCountDataProvider($seal, $siteFinder, $schemaBuilder);
+        $subject = new IndexDocumentCountDataProvider($seal, $siteFinder);
         $items = $subject->getItems();
 
         self::assertCount(2, $items);

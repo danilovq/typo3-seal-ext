@@ -10,15 +10,16 @@ readonly class DsnDto
      * @param array<string, array<mixed>|string> $query
      */
     public function __construct(
-        public readonly string  $scheme,
+        public string  $dsn,
+        public string  $scheme,
         #[\SensitiveParameter]
-        public readonly ?string $user = null,
+        public ?string $user = null,
         #[\SensitiveParameter]
-        public readonly ?string $pass = null,
-        public readonly ?string $host = null,
-        public readonly ?int    $port = null,
-        public readonly ?string $path = null,
-        public readonly array   $query = [],
+        public ?string $pass = null,
+        public ?string $host = null,
+        public ?int    $port = null,
+        public ?string $path = null,
+        public array   $query = [],
     ) {}
 
     /**
@@ -27,6 +28,7 @@ readonly class DsnDto
     public function toArray(): array
     {
         return [
+            'dsn' => $this->dsn,
             'scheme' => $this->scheme,
             'user' => $this->user,
             'pass' => $this->pass,

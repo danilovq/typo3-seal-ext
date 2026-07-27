@@ -7,6 +7,8 @@ services:
   _instanceof:
     CmsIg\Seal\Adapter\AdapterFactoryInterface:
       tags: [ 'seal.adapter_factory' ]
+    Lochmueller\Seal\Schema\IndexDefinitionInterface:
+      tags: [ 'seal.indexDefinition' ]
 
   Lochmueller\Seal\:
     resource: '../Classes/*'
